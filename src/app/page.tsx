@@ -1,6 +1,8 @@
 import Image from "next/image";
+import Link from "next/link";
 import { NewsletterForm } from "@/app/newsletter-form";
 import { CartCountLink } from "@/app/cart-store";
+import { AccountControl } from "@/app/account-control";
 import { formatProductPrice, getHomepageProducts, getStorefrontCategories } from "@/db/queries";
 
 export const dynamic = "force-dynamic";
@@ -41,24 +43,25 @@ export default async function Home() {
         </div>
         <div className="nav-row page-shell">
           <nav aria-label="Main navigation" className="nav-links nav-desktop">
-            <a className="nav-link" href="#clothing">Clothing</a>
-            <a className="nav-link" href="#bags">Bags</a>
-            <a className="nav-link" href="#objects">Objects</a>
+            <Link className="nav-link" href="/collections/clothing">Clothing</Link>
+            <Link className="nav-link" href="/collections/bags">Bags</Link>
+            <Link className="nav-link" href="/collections/objects">Objects</Link>
           </nav>
 
           <details className="mobile-menu">
             <summary aria-label="Open menu"><MenuIcon /><span className="sr-only">Menu</span></summary>
             <nav aria-label="Mobile navigation" className="mobile-menu-panel">
-              <a href="#clothing">Clothing</a>
-              <a href="#bags">Bags</a>
-              <a href="#objects">Objects</a>
+              <Link href="/collections/clothing">Clothing</Link>
+              <Link href="/collections/bags">Bags</Link>
+              <Link href="/collections/objects">Objects</Link>
               <a href="#journal">Our point of view</a>
             </nav>
           </details>
 
           <a className="wordmark" href="#top" aria-label="Aurel home">AUREL</a>
           <div className="header-actions">
-            <a className="header-search nav-link" href="#new-arrivals">Discover</a>
+            <a className="header-search nav-link" href="/new-arrivals">New arrivals</a>
+            <AccountControl />
             <CartCountLink />
           </div>
         </div>
@@ -96,7 +99,7 @@ export default async function Home() {
               <p className="eyebrow">Fresh from the studio</p>
               <h2 id="new-arrivals-title" className="type-heading">The new arrivals</h2>
             </div>
-            <a className="text-link section-link" href="#collections">View the collection <ArrowIcon /></a>
+            <a className="text-link section-link" href="/new-arrivals">View all new arrivals <ArrowIcon /></a>
           </div>
           <div className="product-grid">
             {products.map((product) => (
@@ -144,7 +147,7 @@ export default async function Home() {
           </div>
           <div className="category-grid">
             {categories.map((category) => (
-              <a className="category-card" href={category.slug === "objects" ? "#newsletter" : "#new-arrivals"} id={category.slug} key={category.slug}>
+              <Link className="category-card" href={`/collections/${category.slug}`} id={category.slug} key={category.slug}>
                 <div className="media-frame category-media">
                   <Image src={category.imageUrl} alt={category.imageAlt} fill sizes="(max-width: 767px) 100vw, 33vw" />
                 </div>
@@ -152,7 +155,7 @@ export default async function Home() {
                   <div><h3>{category.name}</h3><p>{category.note}</p></div>
                   <ArrowIcon />
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </section>

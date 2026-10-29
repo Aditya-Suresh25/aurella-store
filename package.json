@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -17,7 +18,8 @@
     "drizzle-orm": "^0.45.4",
     "next": "^15.4.4",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "stripe": "^23.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

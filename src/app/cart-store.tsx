@@ -1,59 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-
-export type CartItem = {
-  id: string;
-  name: string;
-  price: string;
-  image: string;
-  quantity: number;
-};
+import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { authClient } from "@/lib/auth-client";
+import { addBagItemAction, getBagSummaryAction } from "@/app/bag/actions";
 
 type CartContextValue = {
-  items: CartItem[];
   itemCount: number;
-  addItem: (item: Omit<CartItem, "quantity">, quantity: number) => void;
+  refreshBagCount: () => Promise<void>;
+  user: { id: string; name: string | null; email: string; image?: string | null } | null;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
-const STORAGE_KEY = "aurel-cart";
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [ready, setReady] = useState(false);
+type InitialSession = {
+  user: { id: string; name: string | null; email: string; image?: string | null };
+} | null;
+
+export function CartProvider({ children, initialSession = null }: { children: React.ReactNode; initialSession?: InitialSession }) {
+  const { data: session, isPending } = authClient.useSession();
+  const [itemCount, setItemCount] = useState(0);
+  const currentSession = isPending ? initialSession : session;
+  const userId = currentSession?.user.id;
+
+  const refreshBagCount = useCallback(async () => {
+    if (!userId) {
+      setItemCount(0);
+      return;
+    }
+    try {
+      const result = await getBagSummaryAction();
+      setItemCount(result.ok ? result.data.itemCount : 0);
+    } catch {
+      setItemCount(0);
+    }
+  }, [userId]);
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: unknown = JSON.parse(saved);
-        if (Array.isArray(parsed)) setItems(parsed as CartItem[]);
-      }
+      window.localStorage.removeItem("aurel-cart");
     } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
+      // The bag is account-backed; storage may be unavailable in private contexts.
     }
-    setReady(true);
   }, []);
 
   useEffect(() => {
-    if (ready) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items, ready]);
+    if (!isPending) void refreshBagCount();
+  }, [isPending, refreshBagCount]);
 
-  function addItem(item: Omit<CartItem, "quantity">, quantity: number) {
-    setItems((current) => {
-      const existing = current.find((entry) => entry.id === item.id);
-      if (!existing) return [...current, { ...item, quantity }];
-      return current.map((entry) =>
-        entry.id === item.id ? { ...entry, quantity: entry.quantity + quantity } : entry,
-      );
-    });
-  }
-
-  const itemCount = items.reduce((total, item) => total + item.quantity, 0);
-  const value = useMemo(() => ({ items, itemCount, addItem }), [items, itemCount]);
-
+  const value = useMemo(() => ({
+    itemCount,
+    refreshBagCount,
+    user: currentSession?.user ?? null,
+  }), [currentSession, itemCount, refreshBagCount]);
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
@@ -63,10 +63,18 @@ function useCart() {
   return context;
 }
 
+export function useBagCount() {
+  return useCart();
+}
+
+export function useCurrentAccount() {
+  return useCart().user;
+}
+
 export function CartCountLink({ className = "bag-link" }: { className?: string }) {
   const { itemCount } = useCart();
   return (
-    <Link className={className} href="/#new-arrivals" aria-label={`Shopping bag, ${itemCount} items`}>
+    <Link className={className} href="/bag" aria-label={`Shopping bag, ${itemCount} items`}>
       <span className="bag-label">Bag</span>
       <span className="bag-count">{itemCount}</span>
       <svg aria-hidden="true" className="icon" viewBox="0 0 24 24" fill="none">
@@ -79,33 +87,70 @@ export function CartCountLink({ className = "bag-link" }: { className?: string }
 
 export function ProductPurchasePanel({
   product,
+  initialNotice,
 }: {
-  product: Omit<CartItem, "quantity">;
+  product: { slug: string; stockQuantity: number };
+  initialNotice?: string;
 }) {
+  const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const { refreshBagCount } = useCart();
   const [quantity, setQuantity] = useState(1);
-  const [added, setAdded] = useState(false);
-  const { addItem } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
+  const [message, setMessage] = useState(() => initialNotice === "stock-changed"
+    ? "Stock changed while you were signing in. Please choose an available quantity."
+    : initialNotice === "unavailable"
+      ? "This product could not be added. Please try again."
+      : "");
+  const [added, setAdded] = useState(initialNotice === "added");
 
-  function addToCart() {
-    addItem(product, quantity);
-    setAdded(true);
+  async function addToBag() {
+    setMessage("");
+    setAdded(false);
+
+    if (!session?.user) {
+      const params = new URLSearchParams({
+        returnTo: `/products/${product.slug}`,
+        addProduct: product.slug,
+        addQuantity: String(quantity),
+      });
+      router.push(`/sign-in?${params.toString()}`);
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      const result = await addBagItemAction(product.slug, quantity);
+      if (result.ok) {
+        setAdded(true);
+        await refreshBagCount();
+      } else {
+        setMessage(result.error);
+      }
+    } catch {
+      setMessage("We could not update your bag. Please try again.");
+    } finally {
+      setIsAdding(false);
+    }
   }
+
+  const unavailable = product.stockQuantity <= 0;
 
   return (
     <div className="purchase-panel">
       <div className="quantity-control" aria-label="Quantity selector">
         <span className="quantity-label">Quantity</span>
         <div className="quantity-stepper">
-          <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Decrease quantity" disabled={quantity <= 1}>−</button>
+          <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Decrease quantity" disabled={quantity <= 1 || isAdding}>−</button>
           <output aria-live="polite" aria-label="Selected quantity">{quantity}</output>
-          <button type="button" onClick={() => setQuantity((value) => value + 1)} aria-label="Increase quantity">+</button>
+          <button type="button" onClick={() => setQuantity((value) => Math.min(product.stockQuantity, 99, value + 1))} aria-label="Increase quantity" disabled={isAdding || quantity >= Math.min(product.stockQuantity, 99)}>+</button>
         </div>
       </div>
-      <button className="button purchase-button" type="button" onClick={addToCart}>
-        {added ? "Added to bag" : "Add to bag"}
+      <button className="button purchase-button" type="button" onClick={addToBag} disabled={isPending || isAdding || unavailable}>
+        {unavailable ? "Out of stock" : isAdding ? "Adding…" : added ? "Added to bag" : "Add to bag"}
       </button>
       <p className="cart-feedback" role="status" aria-live="polite">
-        {added ? `${quantity} ${quantity === 1 ? "item" : "items"} added · Bag updated` : ""}
+        {message || (added ? `${quantity} ${quantity === 1 ? "item" : "items"} added · Bag updated` : "")}
       </p>
     </div>
   );

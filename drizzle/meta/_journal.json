@@ -8,6 +8,27 @@
       "when": 1793274954397,
       "tag": "0000_busy_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793284501875,
+      "tag": "0001_light_roulette",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793287013127,
+      "tag": "0002_furry_titanium_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793288502353,
+      "tag": "0003_tiny_thunderbolt",
+      "breakpoints": true
     }
   ]
 }

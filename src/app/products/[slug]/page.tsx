@@ -2,16 +2,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CartCountLink, ProductPurchasePanel } from "@/app/cart-store";
+import { AccountControl } from "@/app/account-control";
 import { formatProductPrice, getProductBySlug } from "@/db/queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ bagNotice?: string }>;
 }) {
-  const { slug } = await params;
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
@@ -26,16 +29,19 @@ export default async function ProductPage({
     <>
       <header className="site-header">
         <div className="product-nav page-shell">
-          <Link className="product-back text-link" href="/#new-arrivals">← Back to the collection</Link>
+          <Link className="product-back text-link" href="/new-arrivals">← Back to new arrivals</Link>
           <Link className="wordmark" href="/" aria-label="Aurel home">AUREL</Link>
-          <CartCountLink className="product-bag-link" />
+          <div className="product-header-actions">
+            <AccountControl className="product-account-link" />
+            <CartCountLink className="product-bag-link" />
+          </div>
         </div>
       </header>
 
       <main className="product-detail page-shell">
         <nav className="product-breadcrumb" aria-label="Breadcrumb">
           <Link href="/">Home</Link><span aria-hidden="true">/</span>
-          <Link href="/#new-arrivals">New arrivals</Link><span aria-hidden="true">/</span>
+          <Link href="/new-arrivals">New arrivals</Link><span aria-hidden="true">/</span>
           <span aria-current="page">{product.name}</span>
         </nav>
 
@@ -50,11 +56,13 @@ export default async function ProductPage({
           </div>
 
           <aside className="product-information">
-            <p className="eyebrow">{product.categoryName} · {product.descriptor}</p>
+            <Link className="eyebrow product-category-link" href={`/collections/${product.categorySlug}`}>
+              {product.categoryName} · {product.descriptor}
+            </Link>
             <h1 className="product-detail-title">{product.name}</h1>
             <p className="product-detail-price">{price}</p>
             <p className="product-stock"><span className={`stock-indicator${stockStatus === "In stock" ? "" : " stock-indicator--low"}`} />{stockStatus}</p>
-            <ProductPurchasePanel product={{ id: slug, name: product.name, price, image: product.imageUrl }} />
+            <ProductPurchasePanel product={{ slug, stockQuantity: product.stockQuantity }} initialNotice={query.bagNotice} />
             <hr className="rule product-detail-rule" />
             <p className="product-detail-description">{product.description}</p>
             <p className="product-detail-note">{product.note}</p>
@@ -62,7 +70,7 @@ export default async function ProductPage({
               <span>Made with care</span>
               <span>Thoughtful materials, made for repeat wear.</span>
             </div>
-            <Link className="text-link product-continue-link" href="/#new-arrivals">Continue exploring <span aria-hidden="true">↗</span></Link>
+            <Link className="text-link product-continue-link" href="/new-arrivals">Continue exploring <span aria-hidden="true">↗</span></Link>
           </aside>
         </div>
       </main>
