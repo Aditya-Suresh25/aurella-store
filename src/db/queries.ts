@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { categories, products } from "@/db/schema";
 
@@ -24,6 +24,8 @@ export async function getHomepageProducts() {
       badge: products.badge,
     })
     .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(eq(products.isActive, true), eq(categories.isActive, true)))
     .orderBy(asc(products.sortOrder));
 }
 
@@ -41,7 +43,8 @@ export async function getNewArrivalProducts() {
       badge: products.badge,
     })
     .from(products)
-    .where(eq(products.badge, "New arrival"))
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(eq(products.badge, "New arrival"), eq(products.isActive, true), eq(categories.isActive, true)))
     .orderBy(desc(products.id))
     .limit(12);
 }
@@ -56,6 +59,7 @@ export async function getStorefrontCategories() {
       imageAlt: categories.imageAlt,
     })
     .from(categories)
+    .where(eq(categories.isActive, true))
     .orderBy(asc(categories.sortOrder));
 }
 
@@ -70,7 +74,7 @@ export async function getCategoryBySlug(slug: string) {
       imageAlt: categories.imageAlt,
     })
     .from(categories)
-    .where(eq(categories.slug, slug))
+    .where(and(eq(categories.slug, slug), eq(categories.isActive, true)))
     .limit(1);
 
   return category ?? null;
@@ -89,7 +93,7 @@ export async function getProductsByCategoryId(categoryId: number) {
       badge: products.badge,
     })
     .from(products)
-    .where(eq(products.categoryId, categoryId))
+    .where(and(eq(products.categoryId, categoryId), eq(products.isActive, true)))
     .orderBy(asc(products.sortOrder));
 }
 
@@ -115,7 +119,7 @@ export async function getProductBySlug(slug: string) {
     })
     .from(products)
     .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(eq(products.slug, slug))
+    .where(and(eq(products.slug, slug), eq(products.isActive, true), eq(categories.isActive, true)))
     .limit(1);
 
   return product ?? null;

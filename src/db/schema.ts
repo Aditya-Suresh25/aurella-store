@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  boolean,
   pgTable,
   serial,
   text,
@@ -19,6 +20,7 @@ export const categories = pgTable("categories", {
   imageUrl: text("image_url").notNull(),
   imageAlt: text("image_alt").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const products = pgTable(
@@ -42,6 +44,7 @@ export const products = pgTable(
     note: text("note").notNull(),
     stockQuantity: integer("stock_quantity").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
   },
   (table) => [
     check("products_price_nonnegative", sql`${table.priceCents} >= 0`),
@@ -91,6 +94,7 @@ export const orders = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     status: text("status").notNull().default("pending"),
+    inventoryIssue: boolean("inventory_issue").notNull().default(false),
     stripeCheckoutSessionId: text("stripe_checkout_session_id").unique(),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     subtotalCents: integer("subtotal_cents").notNull(),

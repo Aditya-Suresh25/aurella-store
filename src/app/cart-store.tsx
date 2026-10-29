@@ -9,13 +9,13 @@ import { addBagItemAction, getBagSummaryAction } from "@/app/bag/actions";
 type CartContextValue = {
   itemCount: number;
   refreshBagCount: () => Promise<void>;
-  user: { id: string; name: string | null; email: string; image?: string | null } | null;
+  user: { id: string; name: string | null; email: string; image?: string | null; role?: string | null } | null;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
 
 type InitialSession = {
-  user: { id: string; name: string | null; email: string; image?: string | null };
+  user: { id: string; name: string | null; email: string; image?: string | null; role?: string | null };
 } | null;
 
 export function CartProvider({ children, initialSession = null }: { children: React.ReactNode; initialSession?: InitialSession }) {

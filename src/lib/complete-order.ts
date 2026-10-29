@@ -16,18 +16,50 @@ export async function completePaidOrder(orderId: number, session: Stripe.Checkou
     session.currency !== order.currency
   ) return false;
 
-  // The status guard makes webhook retries and the success-page fallback safe.
-  // Remove purchased quantities only; items added while Checkout was open remain.
+  // Lock the order and all product rows before deciding whether every line can
+  // be decremented. A single paid-order update records the stock-review flag;
+  // the status guard makes webhook retries and the success-page fallback safe.
   await db.execute(sql`
-    with paid_order as (
-      update orders
-      set status = 'paid',
-          stripe_payment_intent_id = ${typeof session.payment_intent === "string" ? session.payment_intent : null},
-          updated_at = now()
+    with order_context as materialized (
+      select id, user_id
+      from orders
       where id = ${orderId}
         and stripe_checkout_session_id = ${session.id}
         and status <> 'paid'
-      returning id, user_id
+      for update
+    ),
+    locked_lines as materialized (
+      select p.id as product_id, p.stock_quantity, oi.quantity
+      from order_items oi
+      join products p on p.id = oi.product_id
+      join order_context oc on oc.id = oi.order_id
+      order by p.id
+      for update of p
+    ),
+    inventory_state as (
+      select oc.id,
+        (count(ll.product_id) = (select count(*) from order_items oi where oi.order_id = oc.id)
+          and coalesce(bool_and(ll.stock_quantity >= ll.quantity), false)) as enough_stock
+      from order_context oc
+      left join locked_lines ll on true
+      group by oc.id
+    ),
+    paid_order as (
+      update orders o
+      set status = 'paid',
+          inventory_issue = not inventory_state.enough_stock,
+          stripe_payment_intent_id = ${typeof session.payment_intent === "string" ? session.payment_intent : null},
+          updated_at = now()
+      from order_context oc, inventory_state
+      where o.id = oc.id and inventory_state.id = oc.id
+      returning o.id, o.user_id
+    ),
+    stock_update as (
+      update products p
+      set stock_quantity = p.stock_quantity - ll.quantity
+      from locked_lines ll, paid_order po, inventory_state ist
+      where p.id = ll.product_id and ist.id = po.id and ist.enough_stock
+      returning p.id
     ),
     removed_items as (
       delete from cart_items ci

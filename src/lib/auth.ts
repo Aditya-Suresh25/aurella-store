@@ -13,6 +13,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  user: {
+    additionalFields: {
+      role: { type: "string", required: false, defaultValue: "customer", input: false },
+    },
+  },
   session: {
     // Long-lived, rolling sessions keep returning customers signed in across visits.
     expiresIn: 60 * 60 * 24 * 365,

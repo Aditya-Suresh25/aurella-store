@@ -23,10 +23,6 @@ export function AccountControl({ className = "" }: { className?: string }) {
   const [signOutError, setSignOutError] = useState("");
 
   if (!account) {
-    return <span className={`account-loading ${className}`} aria-label="Loading account" />;
-  }
-
-  if (!account) {
     return (
       <Link className={`header-account nav-link ${className}`} href="/sign-in">
         Sign in
@@ -64,6 +60,7 @@ export function AccountControl({ className = "" }: { className?: string }) {
       <div className="account-popover">
         <p className="account-popover-name">{name}</p>
         <p className="account-email">{account.email}</p>
+        {account.role === "admin" && <Link className="account-orders-link" href="/admin">Admin panel</Link>}
         <Link className="account-orders-link" href="/orders">Your orders</Link>
         {signOutError && <p className="account-error" role="alert">{signOutError}</p>}
         <button className="account-logout" type="button" onClick={signOut} disabled={isSigningOut}>
