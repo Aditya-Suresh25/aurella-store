@@ -14,7 +14,7 @@ function formatPrice(cents: number, currency: string) {
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ canceled?: string; error?: string }>;
+  searchParams: Promise<{ canceled?: string; error?: string; assistantOrder?: string; assistantOrderError?: string }>;
 }) {
   const userId = await getCurrentUserId();
   if (!userId) redirect("/sign-in?returnTo=%2Fcheckout");
@@ -33,6 +33,8 @@ export default async function CheckoutPage({
       <main className="checkout-placeholder page-shell">
         <p className="eyebrow">Secure checkout · Test environment</p>
         <h1 className="type-display">A little closer to yours.</h1>
+        {params.assistantOrder === "ready" && <p className="checkout-message" role="status">Your requested items are in your bag. Review the items and subtotal before continuing to secure payment.</p>}
+        {params.assistantOrderError && <p className="checkout-message" role="alert">We couldn’t prepare the full order because availability changed or an item is no longer available. Review your bag and try again.</p>}
         {params.canceled === "1" && <p className="checkout-message" role="status">Payment was canceled. Your bag is still here.</p>}
         {params.error && <p className="checkout-message" role="alert">Checkout could not start. Please return to your bag and try again.</p>}
         {bag.items.length === 0 ? (

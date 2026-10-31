@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AuthForm } from "@/app/auth-form";
 import { safeReturnPath } from "@/lib/safe-return-path";
+import type { AssistantBagRequest } from "@/lib/assistant-types";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -17,6 +18,16 @@ export function AuthPage({ mode, searchParams = {} }: { mode: "sign-in" | "sign-
   const pendingAdd = addProduct && /^[a-z0-9-]+$/.test(addProduct) && Number.isSafeInteger(rawQuantity) && rawQuantity > 0 && rawQuantity <= 99
     ? { productSlug: addProduct, quantity: rawQuantity }
     : undefined;
+  let pendingOrder: AssistantBagRequest[] | undefined;
+  try {
+    const parsed: unknown = JSON.parse(first(searchParams.pendingOrder) || "null");
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed.length <= 6 && parsed.every((item) =>
+      item && typeof item === "object" && "productSlug" in item && typeof item.productSlug === "string" && /^[a-z0-9-]{1,100}$/.test(item.productSlug) &&
+      "quantity" in item && Number.isSafeInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 99
+    )) pendingOrder = parsed as AssistantBagRequest[];
+  } catch {
+    pendingOrder = undefined;
+  }
 
   return (
     <main className="auth-page">
@@ -51,7 +62,7 @@ export function AuthPage({ mode, searchParams = {} }: { mode: "sign-in" | "sign-
               ? "Create an account to make your next visit your own."
               : "Sign in to continue exploring the collection."}
           </p>
-          <AuthForm mode={mode} returnTo={returnTo} pendingAdd={pendingAdd} />
+          <AuthForm mode={mode} returnTo={pendingOrder ? "/checkout" : returnTo} pendingAdd={pendingAdd} pendingOrder={pendingOrder} />
         </div>
 
         <footer className="auth-footer">

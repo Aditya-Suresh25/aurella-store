@@ -21,4 +21,4 @@ export type BagData = {
 
 export type BagActionResult<T = BagData> =
   | { ok: true; data: T }
-  | { ok: false; error: string; code?: "UNAUTHENTICATED" | "NOT_FOUND" | "OUT_OF_STOCK" | "INVALID_QUANTITY" };
+  | { ok: false; error: string; code?: "UNAUTHENTICATED" | "NOT_FOUND" | "OUT_OF_STOCK" | "INVALID_QUANTITY" | "CURRENCY_MISMATCH" };

@@ -1,7 +1,9 @@
 "use server";
 
 import type { BagActionResult } from "@/lib/bag-types";
+import type { AssistantBagRequest } from "@/lib/assistant-types";
 import {
+  addBagItemsForUser,
   addBagItemForUser,
   getBagForUser,
   getCurrentUserId,
@@ -11,6 +13,12 @@ import {
 
 async function authenticatedUserId() {
   return getCurrentUserId();
+}
+
+export async function addBagItemsAction(items: AssistantBagRequest[]): Promise<BagActionResult> {
+  const userId = await authenticatedUserId();
+  if (!userId) return { ok: false, code: "UNAUTHENTICATED", error: "Sign in to prepare your order." };
+  return addBagItemsForUser(userId, items);
 }
 
 export async function getBagSummaryAction(): Promise<BagActionResult<{ itemCount: number }>> {

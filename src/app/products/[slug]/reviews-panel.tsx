@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ReviewImageGallery } from "@/app/review-image-gallery";
 import type { ReviewSort } from "@/lib/review-service";
 import { ReviewForm } from "@/app/products/[slug]/review-form";
+import { AiReviewSummary } from "@/app/ai-review-summary";
 
 type ReviewData = Awaited<ReturnType<typeof import("@/lib/review-service").getProductReviewData>>;
 type CustomerReview = { rating: number; title: string; comment: string; status: string; images: { url: string; publicId: string }[] } | null;
@@ -29,6 +30,7 @@ export function ReviewsPanel({ productSlug, data, review, userId, eligible, filt
     <div className="review-layout">
       <aside className="review-summary">
         <div className="review-average"><strong>{data.totalApproved ? data.average.toFixed(1) : "—"}</strong><span className="review-stars">{data.totalApproved ? stars(Math.round(data.average)) : "☆☆☆☆☆"}</span><small>Based on {data.totalApproved} approved reviews</small></div>
+        <AiReviewSummary productSlug={productSlug} />
         <div className="review-breakdown">{[...data.histogram].reverse().map((row) => <div className="review-breakdown-row" key={row.rating}><span>{row.rating} stars</span><span className="review-meter"><i style={{ width: `${data.totalApproved ? (row.count / data.totalApproved) * 100 : 0}%` }} /></span><small>{row.count}</small></div>)}</div>
         <div className="review-write-box"><p className="eyebrow">Share your experience</p>
           {eligible ? <ReviewForm productSlug={productSlug} review={review} /> : !userId ? <><p>Sign in and purchase this piece to leave a verified review.</p><Link className="button button--outline" href={`/sign-in?returnTo=${encodeURIComponent(`/products/${productSlug}#product-reviews`)}`}>Sign in</Link></> : <p>Reviews are reserved for customers with a completed paid order for this piece.</p>}

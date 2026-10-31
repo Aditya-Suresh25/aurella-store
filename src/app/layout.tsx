@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { CartProvider } from "@/app/cart-store";
+import { ShoppingAssistant } from "@/app/shopping-assistant";
 import { auth } from "@/lib/auth";
 import "./globals.css";
 
@@ -13,7 +14,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const session = await auth.api.getSession({ headers: await headers() });
   return (
     <html lang="en">
-      <body><CartProvider initialSession={session}>{children}</CartProvider></body>
+      <body><CartProvider initialSession={session}>{children}<ShoppingAssistant /></CartProvider></body>
     </html>
   );
 }

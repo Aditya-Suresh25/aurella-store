@@ -168,3 +168,30 @@ export const reviewImages = pgTable(
     index("review_images_review_id_idx").on(table.reviewId),
   ],
 );
+
+export const aiRateLimits = pgTable(
+  "ai_rate_limits",
+  {
+    bucketKey: text("bucket_key").primaryKey(),
+    windowStart: timestamp("window_start").notNull(),
+    requestCount: integer("request_count").notNull().default(0),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => [index("ai_rate_limits_expires_at_idx").on(table.expiresAt)],
+);
+
+export const aiSummaries = pgTable(
+  "ai_summaries",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull(),
+    cacheKey: text("cache_key").notNull(),
+    sourceHash: text("source_hash").notNull(),
+    content: text("content").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("ai_summaries_kind_cache_key_unique").on(table.kind, table.cacheKey),
+    index("ai_summaries_updated_at_idx").on(table.updatedAt),
+  ],
+);

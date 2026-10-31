@@ -4,6 +4,7 @@ import { user } from "@/db/auth-schema";
 import { categories, orders, productReviews, products } from "@/db/schema";
 import { db } from "@/lib/db";
 import { formatProductPrice } from "@/db/queries";
+import { AdminAiBriefing } from "@/app/admin/ai-briefing";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function AdminOverview({ searchParams }: { searchParams: Pr
     <header className="admin-page-heading"><div><p className="eyebrow">Store overview</p><h1 className="admin-title">Dashboard</h1></div><Link className="button button--outline" href="/">View storefront</Link></header>
     {notice && <p className="admin-notice" role="status">{notice}</p>}
     <section className="admin-metric-grid" aria-label="Store counts">{cards.map(([label, value, href]) => <Link href={href} className="admin-metric" key={label}><span>{label}</span><strong>{value}</strong></Link>)}</section>
+    <AdminAiBriefing />
     <section className="admin-section"><div className="admin-section-heading"><div><p className="eyebrow">Latest activity</p><h2>Recent orders</h2></div><Link className="text-link" href="/admin/orders">All orders →</Link></div>
       {recent.length ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Payment</th><th>Total</th></tr></thead><tbody>{recent.map((order) => <tr key={order.id}><td><Link href={`/admin/orders/${order.id}`}>#{order.id}</Link>{order.inventoryIssue && <span className="admin-issue">Review stock</span>}</td><td>{order.customer}<small>{order.email}</small></td><td>{order.createdAt.toLocaleDateString()}</td><td><span className={`admin-status admin-status--${order.status}`}>{order.status}</span></td><td>{formatProductPrice(order.subtotalCents, order.currency)}</td></tr>)}</tbody></table></div> : <p className="admin-empty">No orders have been placed yet.</p>}
     </section>

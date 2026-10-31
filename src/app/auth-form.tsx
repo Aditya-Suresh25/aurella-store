@@ -4,17 +4,20 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { addBagItemAction } from "@/app/bag/actions";
+import { addBagItemAction, addBagItemsAction } from "@/app/bag/actions";
+import type { AssistantBagRequest } from "@/lib/assistant-types";
 import { safeReturnPath } from "@/lib/safe-return-path";
 
 export function AuthForm({
   mode,
   returnTo = "/",
   pendingAdd,
+  pendingOrder,
 }: {
   mode: "sign-in" | "sign-up";
   returnTo?: string;
   pendingAdd?: { productSlug: string; quantity: number };
+  pendingOrder?: AssistantBagRequest[];
 }) {
   const isSignUp = mode === "sign-up";
   const router = useRouter();
@@ -50,7 +53,12 @@ export function AuthForm({
       }
 
       let destination = safeReturnPath(returnTo);
-      if (pendingAdd) {
+      if (pendingOrder) {
+        const addResult = await addBagItemsAction(pendingOrder);
+        destination = addResult.ok
+          ? "/checkout?assistantOrder=ready"
+          : `/checkout?assistantOrderError=${addResult.code === "OUT_OF_STOCK" ? "stock" : "unavailable"}`;
+      } else if (pendingAdd) {
         const addResult = await addBagItemAction(pendingAdd.productSlug, pendingAdd.quantity);
         const returnUrl = new URL(destination, window.location.origin);
         returnUrl.searchParams.set("bagNotice", addResult.ok ? "added" : addResult.code === "OUT_OF_STOCK" ? "stock-changed" : "unavailable");
@@ -116,7 +124,7 @@ export function AuthForm({
 
       <p className="auth-switch">
         {isSignUp ? "Already have an account?" : "New to Aurel?"}{" "}
-        <Link href={`${isSignUp ? "/sign-in" : "/sign-up"}?${new URLSearchParams({ returnTo: safeReturnPath(returnTo), ...(pendingAdd ? { addProduct: pendingAdd.productSlug, addQuantity: String(pendingAdd.quantity) } : {}) }).toString()}`}>
+        <Link href={`${isSignUp ? "/sign-in" : "/sign-up"}?${new URLSearchParams({ returnTo: safeReturnPath(returnTo), ...(pendingAdd ? { addProduct: pendingAdd.productSlug, addQuantity: String(pendingAdd.quantity) } : {}), ...(pendingOrder ? { pendingOrder: JSON.stringify(pendingOrder) } : {}) }).toString()}`}>
           {isSignUp ? "Sign in" : "Create an account"}
         </Link>
       </p>
