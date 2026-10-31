@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { CartCountLink, ProductPurchasePanel } from "@/app/cart-store";
 import { AccountControl } from "@/app/account-control";
 import { formatProductPrice, getProductBySlug } from "@/db/queries";
+import { getCurrentUserId } from "@/lib/bag-service";
+import { getCustomerReview, getProductReviewData, getVerifiedOrder, type ReviewSort } from "@/lib/review-service";
+import { ReviewsPanel } from "@/app/products/[slug]/reviews-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +15,25 @@ export default async function ProductPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ bagNotice?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ slug }, query] = await Promise.all([params, searchParams]);
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+
+  const queryValue = (key: string) => typeof query[key] === "string" ? query[key] as string : "";
+  const rawRating = Number(queryValue("rating"));
+  const rating = Number.isInteger(rawRating) && rawRating >= 1 && rawRating <= 5 ? rawRating : undefined;
+  const rawSort = queryValue("sort");
+  const sort: ReviewSort = rawSort === "highest" || rawSort === "lowest" ? rawSort : "newest";
+  const userId = await getCurrentUserId();
+  const rawPage = Number(queryValue("page"));
+  const filters = { rating, photosOnly: queryValue("photos") === "1", verifiedOnly: queryValue("verified") === "1", sort, page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1 };
+  const [reviews, purchase, customerReview] = await Promise.all([
+    getProductReviewData(product.id, filters),
+    userId ? getVerifiedOrder(userId, product.id) : Promise.resolve(null),
+    userId ? getCustomerReview(userId, product.id) : Promise.resolve(null),
+  ]);
 
   const price = formatProductPrice(product.priceCents, product.currency);
   const stockStatus = product.stockQuantity === 0
@@ -60,9 +77,10 @@ export default async function ProductPage({
               {product.categoryName} · {product.descriptor}
             </Link>
             <h1 className="product-detail-title">{product.name}</h1>
+            <a className="product-review-summary-link" href="#product-reviews"><span className="review-stars">{reviews.totalApproved ? "★".repeat(Math.round(reviews.average)) + "☆".repeat(5 - Math.round(reviews.average)) : "☆☆☆☆☆"}</span><span>{reviews.totalApproved ? `${reviews.average.toFixed(1)} · ${reviews.totalApproved} ${reviews.totalApproved === 1 ? "review" : "reviews"}` : "No reviews yet"}</span></a>
             <p className="product-detail-price">{price}</p>
             <p className="product-stock"><span className={`stock-indicator${stockStatus === "In stock" ? "" : " stock-indicator--low"}`} />{stockStatus}</p>
-            <ProductPurchasePanel product={{ slug, stockQuantity: product.stockQuantity }} initialNotice={query.bagNotice} />
+            <ProductPurchasePanel product={{ slug, stockQuantity: product.stockQuantity }} initialNotice={queryValue("bagNotice")} />
             <hr className="rule product-detail-rule" />
             <p className="product-detail-description">{product.description}</p>
             <p className="product-detail-note">{product.note}</p>
@@ -74,6 +92,8 @@ export default async function ProductPage({
           </aside>
         </div>
       </main>
+
+      <ReviewsPanel productSlug={slug} data={reviews} review={customerReview} userId={userId} eligible={Boolean(purchase)} filters={filters} />
 
       <section className="product-detail-footer" aria-label="More from Aurel">
         <p className="eyebrow">Aurel, by design</p>

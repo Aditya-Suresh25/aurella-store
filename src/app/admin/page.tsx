@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, count, desc, eq, lte } from "drizzle-orm";
 import { user } from "@/db/auth-schema";
-import { categories, orders, products } from "@/db/schema";
+import { categories, orders, productReviews, products } from "@/db/schema";
 import { db } from "@/lib/db";
 import { formatProductPrice } from "@/db/queries";
 
@@ -9,16 +9,17 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminOverview({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
   const { notice } = await searchParams;
-  const [activeProducts, activeCategories, lowStock, pendingOrders, paidOrders, recent] = await Promise.all([
+  const [activeProducts, activeCategories, lowStock, pendingOrders, paidOrders, pendingReviews, recent] = await Promise.all([
     db.select({ total: count() }).from(products).where(eq(products.isActive, true)),
     db.select({ total: count() }).from(categories).where(eq(categories.isActive, true)),
     db.select({ total: count() }).from(products).where(and(eq(products.isActive, true), lte(products.stockQuantity, 5))),
     db.select({ total: count() }).from(orders).where(eq(orders.status, "pending")),
     db.select({ total: count() }).from(orders).where(eq(orders.status, "paid")),
+    db.select({ total: count() }).from(productReviews).where(eq(productReviews.status, "pending")),
     db.select({ id: orders.id, status: orders.status, subtotalCents: orders.subtotalCents, currency: orders.currency, createdAt: orders.createdAt, customer: user.name, email: user.email, inventoryIssue: orders.inventoryIssue })
       .from(orders).innerJoin(user, eq(orders.userId, user.id)).orderBy(desc(orders.createdAt)).limit(6),
   ]);
-  const cards = [["Active products", activeProducts[0].total, "/admin/products"], ["Active categories", activeCategories[0].total, "/admin/categories"], ["Low / out of stock", lowStock[0].total, "/admin/products"], ["Pending orders", pendingOrders[0].total, "/admin/orders"], ["Paid orders", paidOrders[0].total, "/admin/orders"]] as const;
+  const cards = [["Active products", activeProducts[0].total, "/admin/products"], ["Active categories", activeCategories[0].total, "/admin/categories"], ["Low / out of stock", lowStock[0].total, "/admin/products"], ["Pending orders", pendingOrders[0].total, "/admin/orders"], ["Paid orders", paidOrders[0].total, "/admin/orders"], ["Reviews to approve", pendingReviews[0].total, "/admin/reviews"]] as const;
   return <>
     <header className="admin-page-heading"><div><p className="eyebrow">Store overview</p><h1 className="admin-title">Dashboard</h1></div><Link className="button button--outline" href="/">View storefront</Link></header>
     {notice && <p className="admin-notice" role="status">{notice}</p>}

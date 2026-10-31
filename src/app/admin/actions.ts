@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { categories, products } from "@/db/schema";
+import { categories, productReviews, products } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-auth";
 
@@ -87,4 +87,19 @@ export async function deleteProduct(form: FormData) {
   try { await db.delete(products).where(eq(products.id, integer(form, "id", 1))); }
   catch { done("products", "This product is referenced by a bag or order and cannot be deleted. Archive it instead."); }
   refreshCatalog(); done("products", "Product deleted.");
+}
+
+export async function moderateProductReview(form: FormData) {
+  await requireAdmin();
+  const id = integer(form, "review_id", 1);
+  const nextStatus = text(form, "status");
+  if (nextStatus !== "approved" && nextStatus !== "hidden") done("reviews", "Choose a valid review action.");
+  const [review] = await db.select({ productSlug: products.slug }).from(productReviews)
+    .innerJoin(products, eq(productReviews.productId, products.id)).where(eq(productReviews.id, id)).limit(1);
+  if (!review) done("reviews", "Review could not be found.");
+  await db.update(productReviews).set({ status: nextStatus, updatedAt: new Date() }).where(eq(productReviews.id, id));
+  revalidatePath(`/products/${review.productSlug}`);
+  revalidatePath("/admin/reviews");
+  revalidatePath("/admin");
+  done("reviews", nextStatus === "approved" ? "Review approved." : "Review hidden.");
 }

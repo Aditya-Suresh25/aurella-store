@@ -127,3 +127,44 @@ export const orderItems = pgTable(
     index("order_items_order_id_idx").on(table.orderId),
   ],
 );
+
+export const productReviews = pgTable(
+  "product_reviews",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "restrict" }),
+    productId: integer("product_id").notNull().references(() => products.id, { onDelete: "restrict" }),
+    orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "restrict" }),
+    rating: integer("rating").notNull(),
+    title: text("title").notNull(),
+    comment: text("comment").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check("product_reviews_rating_range", sql`${table.rating} between 1 and 5`),
+    check("product_reviews_status_valid", sql`${table.status} in ('pending', 'approved', 'hidden')`),
+    check("product_reviews_title_length", sql`char_length(trim(${table.title})) between 3 and 120`),
+    check("product_reviews_comment_length", sql`char_length(trim(${table.comment})) between 10 and 3000`),
+    unique("product_reviews_user_product_unique").on(table.userId, table.productId),
+    index("product_reviews_product_status_created_idx").on(table.productId, table.status, table.createdAt),
+    index("product_reviews_status_created_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const reviewImages = pgTable(
+  "review_images",
+  {
+    id: serial("id").primaryKey(),
+    reviewId: integer("review_id").notNull().references(() => productReviews.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    publicId: text("public_id").notNull().unique(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check("review_images_sort_order_range", sql`${table.sortOrder} between 0 and 2`),
+    index("review_images_review_id_idx").on(table.reviewId),
+  ],
+);

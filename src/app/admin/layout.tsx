@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-auth";
 
-const links = [["Overview", "/admin"], ["Products", "/admin/products"], ["Categories", "/admin/categories"], ["Orders", "/admin/orders"]];
+const links = [["Overview", "/admin"], ["Products", "/admin/products"], ["Categories", "/admin/categories"], ["Orders", "/admin/orders"], ["Reviews", "/admin/reviews"]];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();

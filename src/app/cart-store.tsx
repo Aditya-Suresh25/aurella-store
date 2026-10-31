@@ -134,6 +134,19 @@ export function ProductPurchasePanel({
     }
   }
 
+  function handlePurchaseClick() {
+    if (added) {
+      router.push("/bag");
+      return;
+    }
+    void addToBag();
+  }
+
+  function changeQuantity(nextQuantity: number) {
+    setQuantity(nextQuantity);
+    setAdded(false);
+  }
+
   const unavailable = product.stockQuantity <= 0;
 
   return (
@@ -141,13 +154,13 @@ export function ProductPurchasePanel({
       <div className="quantity-control" aria-label="Quantity selector">
         <span className="quantity-label">Quantity</span>
         <div className="quantity-stepper">
-          <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))} aria-label="Decrease quantity" disabled={quantity <= 1 || isAdding}>−</button>
+          <button type="button" onClick={() => changeQuantity(Math.max(1, quantity - 1))} aria-label="Decrease quantity" disabled={quantity <= 1 || isAdding}>−</button>
           <output aria-live="polite" aria-label="Selected quantity">{quantity}</output>
-          <button type="button" onClick={() => setQuantity((value) => Math.min(product.stockQuantity, 99, value + 1))} aria-label="Increase quantity" disabled={isAdding || quantity >= Math.min(product.stockQuantity, 99)}>+</button>
+          <button type="button" onClick={() => changeQuantity(Math.min(product.stockQuantity, 99, quantity + 1))} aria-label="Increase quantity" disabled={isAdding || quantity >= Math.min(product.stockQuantity, 99)}>+</button>
         </div>
       </div>
-      <button className="button purchase-button" type="button" onClick={addToBag} disabled={isPending || isAdding || unavailable}>
-        {unavailable ? "Out of stock" : isAdding ? "Adding…" : added ? "Added to bag" : "Add to bag"}
+      <button className={`button purchase-button${added ? " purchase-button--added" : ""}`} type="button" onClick={handlePurchaseClick} disabled={isPending || isAdding || unavailable}>
+        {unavailable ? "Out of stock" : isAdding ? "Adding…" : added ? "View bag" : "Add to bag"}
       </button>
       <p className="cart-feedback" role="status" aria-live="polite">
         {message || (added ? `${quantity} ${quantity === 1 ? "item" : "items"} added · Bag updated` : "")}
