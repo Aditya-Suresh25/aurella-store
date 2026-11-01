@@ -1,11 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { and, eq, inArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { cartItems, carts, categories, products } from "@/db/schema";
+import { assistantActionKeys, cartItems, carts, categories, products } from "@/db/schema";
 import type { BagActionResult, BagData } from "@/lib/bag-types";
 
 const emptyBag: BagData = { items: [], itemCount: 0, subtotalCents: 0, currency: "USD" };
@@ -106,6 +107,7 @@ export async function addBagItemForUser(userId: string, productSlug: string, qua
 export async function addBagItemsForUser(
   userId: string,
   requestedItems: Array<{ productSlug: string; quantity: number }>,
+  idempotencyKey?: string,
 ): Promise<BagActionResult> {
   if (!Array.isArray(requestedItems) || requestedItems.length < 1 || requestedItems.length > 6) {
     return { ok: false, code: "INVALID_QUANTITY", error: "Choose between one and six order items." };
@@ -123,6 +125,16 @@ export async function addBagItemsForUser(
   }
   const items = [...combined].map(([productSlug, quantity]) => ({ productSlug, quantity }));
   const slugs = items.map((item) => item.productSlug);
+  const serializedItems = JSON.stringify(items);
+  const sqlItems = JSON.stringify(items.map(({ productSlug, quantity }) => ({ product_slug: productSlug, quantity })));
+  const actionKey = idempotencyKey
+    ? createHash("sha256").update(`${userId}:${idempotencyKey}:${serializedItems}`).digest("hex")
+    : null;
+  if (actionKey) {
+    const [priorAction] = await db.select({ key: assistantActionKeys.key }).from(assistantActionKeys)
+      .where(and(eq(assistantActionKeys.key, actionKey), eq(assistantActionKeys.userId, userId))).limit(1);
+    if (priorAction) return { ok: true, data: await getBagForUser(userId) };
+  }
   const availableProducts = await db.select({
     id: products.id,
     slug: products.slug,
@@ -152,11 +164,12 @@ export async function addBagItemsForUser(
   const cartId = await getCartId(userId, true);
   if (!cartId) return { ok: false, error: "Your bag could not be created. Please try again." };
 
-  const serializedItems = JSON.stringify(items);
-  const validate = db.execute(sql`
-    WITH requested AS MATERIALIZED (
+  try {
+    await db.execute(sql`
+    WITH
+    requested AS MATERIALIZED (
       SELECT input.product_slug, input.quantity, p.id AS product_id
-      FROM jsonb_to_recordset(${serializedItems}::jsonb) AS input(product_slug text, quantity integer)
+      FROM jsonb_to_recordset(${sqlItems}::jsonb) AS input(product_slug text, quantity integer)
       LEFT JOIN products p ON p.slug = input.product_slug
     ),
     locked_products AS MATERIALIZED (
@@ -168,7 +181,7 @@ export async function addBagItemsForUser(
     locked_categories AS MATERIALIZED (
       SELECT c.id, c.is_active
       FROM categories c
-      JOIN locked_products p ON p.category_id = c.id
+      WHERE c.id IN (SELECT category_id FROM locked_products)
       FOR SHARE OF c
     ),
     locked_items AS MATERIALIZED (
@@ -191,30 +204,40 @@ export async function addBagItemsForUser(
       LEFT JOIN locked_products p ON p.id = r.product_id
       LEFT JOIN locked_categories c ON c.id = p.category_id
       LEFT JOIN locked_items ci ON ci.product_id = p.id
-    )
-    SELECT CASE WHEN coalesce((SELECT valid FROM validation), false) THEN true
-      ELSE (1 / coalesce((SELECT valid::integer FROM validation), 0) = 1) END AS valid
-  `);
-  const upserts = items.map((item) => {
-    const product = productBySlug.get(item.productSlug)!;
-    return db.execute(sql`
+    ),
+    action_claim AS (
+      INSERT INTO assistant_action_keys (key, user_id)
+      SELECT ${actionKey ?? ""}, ${userId}
+      WHERE ${actionKey !== null} AND coalesce((SELECT valid FROM validation), false)
+      ON CONFLICT (key) DO NOTHING
+      RETURNING key
+    ),
+    action_existing AS MATERIALIZED (
+      SELECT key FROM assistant_action_keys WHERE key = ${actionKey ?? ""} AND user_id = ${userId}
+    ),
+    inserted_items AS (
       INSERT INTO cart_items (cart_id, product_id, quantity)
-      VALUES (${cartId}, ${product.id}, ${item.quantity})
+      SELECT ${cartId}, p.id, r.quantity
+      FROM requested r
+      JOIN locked_products p ON p.id = r.product_id
+      CROSS JOIN validation v
+      WHERE v.valid AND (${actionKey === null ? sql`true` : sql`EXISTS (SELECT 1 FROM action_claim)`})
       ON CONFLICT (cart_id, product_id) DO UPDATE
         SET quantity = cart_items.quantity + excluded.quantity, updated_at = now()
       WHERE cart_items.quantity + excluded.quantity <= (
-        SELECT stock_quantity FROM products WHERE id = excluded.product_id
+        SELECT stock_quantity FROM locked_products WHERE id = excluded.product_id
       )
       RETURNING id
-    `);
-  });
-
-  try {
-    await db.batch([validate, ...upserts] as const);
+    )
+    SELECT CASE WHEN (coalesce((SELECT valid FROM validation), false)
+      AND (SELECT count(*) FROM inserted_items) = ${items.length})
+      OR (${actionKey === null ? sql`false` : sql`NOT EXISTS (SELECT 1 FROM action_claim) AND EXISTS (SELECT 1 FROM action_existing)`}) THEN true
+      ELSE (1 / (SELECT CASE WHEN count(*) = ${items.length} THEN 1 ELSE 0 END FROM inserted_items) = 1) END AS valid
+  `);
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
     if (code === "22012") {
-      return { ok: false, code: "OUT_OF_STOCK", error: "Availability changed while preparing your order. Nothing was added; please try again." };
+      return { ok: false, code: "OUT_OF_STOCK", error: "Availability changed while preparing your order. Please review stock and try again." };
     }
     throw error;
   }

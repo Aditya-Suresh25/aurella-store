@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/bag-service";
 import { getCloudinary } from "@/lib/cloudinary";
 import { db } from "@/lib/db";
+import { indexApprovedReviewKnowledge } from "@/lib/assistant-retrieval";
 import { getCustomerReview, getVerifiedOrder } from "@/lib/review-service";
 import { products } from "@/db/schema";
 
@@ -121,6 +122,8 @@ export async function saveProductReviewAction(_previous: ReviewFormState, form: 
     if (!row) throw new ReviewValidationError("The paid purchase could not be verified. Please refresh and try again.");
     const oldIds = row.removed_public_ids ?? [];
     if (oldIds.length && cloud) await Promise.allSettled(oldIds.map((publicId) => cloud.uploader.destroy(publicId, { resource_type: "image" })));
+    try { await indexApprovedReviewKnowledge(row.id); }
+    catch { try { await db.execute(sql`delete from assistant_knowledge where source_key = ${`review:${row.id}`}`); } catch { /* Review retrieval is refreshed when the database migration is applied. */ } }
     revalidatePath(`/products/${slug}`);
     revalidatePath("/admin/reviews");
     return { success: existing ? "Your changes are saved and waiting for approval." : "Your review is submitted and waiting for approval." };

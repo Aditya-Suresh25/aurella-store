@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  customType,
   index,
   integer,
+  jsonb,
   boolean,
   pgTable,
   serial,
@@ -11,6 +13,12 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { user } from "@/db/auth-schema";
+
+const vector768 = customType<{ data: number[]; driverData: string }>({
+  dataType: () => "vector(768)",
+  toDriver: (value) => `[${value.join(",")}]`,
+  fromDriver: (value) => String(value).slice(1, -1).split(",").map(Number),
+});
 
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
@@ -193,5 +201,46 @@ export const aiSummaries = pgTable(
   (table) => [
     unique("ai_summaries_kind_cache_key_unique").on(table.kind, table.cacheKey),
     index("ai_summaries_updated_at_idx").on(table.updatedAt),
+  ],
+);
+
+export const assistantSessions = pgTable(
+  "assistant_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+    state: jsonb("state").notNull().default({}),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (table) => [index("assistant_sessions_expires_at_idx").on(table.expiresAt)],
+);
+
+export const assistantActionKeys = pgTable(
+  "assistant_action_keys",
+  {
+    key: text("key").primaryKey(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("assistant_action_keys_created_at_idx").on(table.createdAt)],
+);
+
+export const assistantKnowledge = pgTable(
+  "assistant_knowledge",
+  {
+    id: serial("id").primaryKey(),
+    sourceKey: text("source_key").notNull().unique(),
+    sourceType: text("source_type").notNull(),
+    productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    sourceText: text("source_text").notNull(),
+    contentHash: text("content_hash").notNull(),
+    embedding: vector768("embedding").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check("assistant_knowledge_source_type_valid", sql`${table.sourceType} in ('product', 'review')`),
+    index("assistant_knowledge_product_id_idx").on(table.productId),
+    index("assistant_knowledge_source_type_idx").on(table.sourceType),
   ],
 );

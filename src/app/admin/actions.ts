@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { categories, productReviews, products } from "@/db/schema";
+import { assistantKnowledge, categories, productReviews, products } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-auth";
+import { indexApprovedReviewKnowledge, indexProductKnowledge, removeProductKnowledge } from "@/lib/assistant-retrieval";
 
 function text(form: FormData, name: string) { return String(form.get(name) ?? "").trim(); }
 function integer(form: FormData, name: string, min = 0) {
@@ -31,6 +32,14 @@ export async function saveCategory(form: FormData) {
     if (id) await db.update(categories).set(values).where(eq(categories.id, integer(form, "id", 1)));
     else await db.insert(categories).values(values);
   } catch { done("categories", "Could not save category. Check that its slug is unique and values are valid."); }
+  const categoryId = id ? Number(id) : (await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, values.slug)).limit(1))[0]?.id;
+  if (categoryId) {
+    const related = await db.select({ id: products.id }).from(products).where(eq(products.categoryId, categoryId));
+    await Promise.all(related.map(async (product) => {
+      try { await indexProductKnowledge(product.id); }
+      catch { try { await removeProductKnowledge(product.id); } catch { /* Retrieval remains unavailable until the migration is applied. */ } }
+    }));
+  }
   refreshCatalog(); done("categories", "Category saved.");
 }
 
@@ -62,10 +71,20 @@ export async function saveProduct(form: FormData) {
     detailImageUrl: required(form, "detail_image_url"), detailImageAlt: required(form, "detail_image_alt"),
     note: required(form, "note"), stockQuantity: integer(form, "stock_quantity"), sortOrder: integer(form, "sort_order"),
   };
+  let savedId: number | undefined;
   try {
-    if (id) await db.update(products).set(values).where(eq(products.id, integer(form, "id", 1)));
-    else await db.insert(products).values(values);
+    if (id) {
+      const [saved] = await db.update(products).set(values).where(eq(products.id, integer(form, "id", 1))).returning({ id: products.id });
+      savedId = saved?.id;
+    } else {
+      const [saved] = await db.insert(products).values(values).returning({ id: products.id });
+      savedId = saved?.id;
+    }
   } catch { done("products", "Could not save product. Check its unique slug, category, and field values."); }
+  if (savedId) {
+    try { await indexProductKnowledge(savedId); }
+    catch { try { await removeProductKnowledge(savedId); } catch { /* Retrieval remains unavailable until the migration is applied. */ } }
+  }
   refreshCatalog(); done("products", "Product saved.");
 }
 
@@ -98,6 +117,8 @@ export async function moderateProductReview(form: FormData) {
     .innerJoin(products, eq(productReviews.productId, products.id)).where(eq(productReviews.id, id)).limit(1);
   if (!review) done("reviews", "Review could not be found.");
   await db.update(productReviews).set({ status: nextStatus, updatedAt: new Date() }).where(eq(productReviews.id, id));
+  try { await indexApprovedReviewKnowledge(id); }
+  catch { await db.delete(assistantKnowledge).where(eq(assistantKnowledge.sourceKey, `review:${id}`)); }
   revalidatePath(`/products/${review.productSlug}`);
   revalidatePath("/admin/reviews");
   revalidatePath("/admin");
