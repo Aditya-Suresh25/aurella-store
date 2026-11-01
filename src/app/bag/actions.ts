@@ -1,6 +1,6 @@
 "use server";
 
-import type { BagActionResult } from "@/lib/bag-types";
+import type { BagActionResult, BagData } from "@/lib/bag-types";
 import type { AssistantBagRequest } from "@/lib/assistant-types";
 import {
   addBagItemsForUser,
@@ -19,6 +19,16 @@ export async function addBagItemsAction(items: AssistantBagRequest[]): Promise<B
   const userId = await authenticatedUserId();
   if (!userId) return { ok: false, code: "UNAUTHENTICATED", error: "Sign in to prepare your order." };
   return addBagItemsForUser(userId, items);
+}
+
+export async function getAssistantBagQuoteAction(): Promise<BagActionResult<BagData>> {
+  const userId = await authenticatedUserId();
+  if (!userId) return { ok: false, code: "UNAUTHENTICATED", error: "Sign in to review your bag total." };
+  const bag = await getBagForUser(userId);
+  if (bag.items.some((item) => item.currency !== bag.currency)) {
+    return { ok: false, code: "CURRENCY_MISMATCH", error: "Your bag contains more than one currency. Please resolve that in your bag before checkout." };
+  }
+  return { ok: true, data: bag };
 }
 
 export async function getBagSummaryAction(): Promise<BagActionResult<{ itemCount: number }>> {

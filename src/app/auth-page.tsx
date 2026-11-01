@@ -62,7 +62,7 @@ export function AuthPage({ mode, searchParams = {} }: { mode: "sign-in" | "sign-
               ? "Create an account to make your next visit your own."
               : "Sign in to continue exploring the collection."}
           </p>
-          <AuthForm mode={mode} returnTo={pendingOrder ? "/checkout" : returnTo} pendingAdd={pendingAdd} pendingOrder={pendingOrder} />
+          <AuthForm mode={mode} returnTo={pendingOrder ? "/?assistantResume=quote" : returnTo} pendingAdd={pendingAdd} pendingOrder={pendingOrder} />
         </div>
 
         <footer className="auth-footer">

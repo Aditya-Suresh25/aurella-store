@@ -13,13 +13,23 @@ export type AssistantProduct = {
 
 export type AssistantOrderLine = {
   requestedTerm: string;
-  quantity: number;
+  quantity?: number;
   options: AssistantProduct[];
   selectedSlug?: string;
+  exactName?: boolean;
 };
 
 export type AssistantOrderPlan = {
   lines: AssistantOrderLine[];
+  autoAdd?: boolean;
+  message?: string;
+};
+
+export type AssistantSearchIntent = {
+  query: string;
+  categorySlug: string;
+  maxPriceCents: number;
+  inStockOnly: boolean;
 };
 
 export type AssistantBagRequest = {

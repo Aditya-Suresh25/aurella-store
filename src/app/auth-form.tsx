@@ -56,8 +56,8 @@ export function AuthForm({
       if (pendingOrder) {
         const addResult = await addBagItemsAction(pendingOrder);
         destination = addResult.ok
-          ? "/checkout?assistantOrder=ready"
-          : `/checkout?assistantOrderError=${addResult.code === "OUT_OF_STOCK" ? "stock" : "unavailable"}`;
+          ? "/?assistantResume=quote"
+          : `/?assistantResume=error&assistantOrderError=${addResult.code === "OUT_OF_STOCK" ? "stock" : "unavailable"}`;
       } else if (pendingAdd) {
         const addResult = await addBagItemAction(pendingAdd.productSlug, pendingAdd.quantity);
         const returnUrl = new URL(destination, window.location.origin);

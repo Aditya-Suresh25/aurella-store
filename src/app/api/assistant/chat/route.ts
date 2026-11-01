@@ -36,6 +36,21 @@ async function handleChatRequest(request: Request, deadlineAt: number, requestSt
     }
     const message = (body as { message: string }).message;
     const rawHistory = (body as { history?: unknown }).history;
+    const rawContinuation = (body as { continuation?: unknown }).continuation;
+    let continuation: { intent: { query: string; categorySlug: string; maxPriceCents: number; inStockOnly: boolean }; offset: number } | undefined;
+    if (rawContinuation !== undefined) {
+      if (!rawContinuation || typeof rawContinuation !== "object" || Array.isArray(rawContinuation)) {
+        return NextResponse.json({ error: "This search page expired. Please search again." }, { status: 400 });
+      }
+      const value = rawContinuation as { intent?: unknown; offset?: unknown };
+      if (!value.intent || typeof value.intent !== "object" || Array.isArray(value.intent) || !Number.isSafeInteger(value.offset)) {
+        return NextResponse.json({ error: "This search page expired. Please search again." }, { status: 400 });
+      }
+      continuation = {
+        intent: value.intent as { query: string; categorySlug: string; maxPriceCents: number; inStockOnly: boolean },
+        offset: Number(value.offset),
+      };
+    }
     const history = Array.isArray(rawHistory) ? rawHistory.slice(-6).flatMap((turn) => {
       if (!turn || typeof turn !== "object") return [];
       const item = turn as { role?: unknown; text?: unknown };
@@ -47,7 +62,7 @@ async function handleChatRequest(request: Request, deadlineAt: number, requestSt
     if (!(await enforceAssistantLimit(identity, Boolean(session?.user.id)))) {
       return NextResponse.json({ error: "You’ve reached the assistant’s short-term message limit. Please wait a few minutes and try again." }, { status: 429 });
     }
-    const result = await chatWithAurelAssistant(message, history, deadlineAt);
+    const result = await chatWithAurelAssistant(message, history, deadlineAt, continuation);
     console.info(JSON.stringify({ event: "aurel_ai_timing", feature: "chat", stage: "request_complete", durationMs: Date.now() - requestStartedAt }));
     return NextResponse.json(result);
   } catch (error) {
